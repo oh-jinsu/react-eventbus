@@ -1,7 +1,15 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { createContext, useContext } from "react";
 
-export function createEventBusContext<TEventMap>() {
+export type EventbusContextProps<TEventMap> = {
+  dispatch: <T extends keyof TEventMap>(type: T, payload: TEventMap[T]) => void;
+  subscribe: <T extends keyof TEventMap>(
+    type: T,
+    callback: (payload: TEventMap[T]) => void
+  ) => () => void;
+};
+
+export function createEventbusContext<TEventMap>() {
   type EventbusContextProps = {
     dispatch: <T extends keyof TEventMap>(
       type: T,
@@ -12,25 +20,28 @@ export function createEventBusContext<TEventMap>() {
       callback: (payload: TEventMap[T]) => void
     ) => () => void;
   };
-  const EventbusContext = createContext<EventbusContextProps | null>(null);
 
-  const useEventbus = () => {
-    const context = useContext(EventbusContext);
+  const Context = createContext<EventbusContextProps>(null as never);
 
-    if (!context) {
-      throw new Error("useChannel must be used within a ChannelProvider");
-    }
+  const useEventbusContext = () => useContext(Context);
 
-    return context;
-  };
+  function useSubscribe<T extends keyof TEventMap>(
+    type: T,
+    fn: (payload: TEventMap[T]) => void
+  ) {
+    const { subscribe } = useEventbusContext();
 
-  function EventbusProvider({ children }: { children: React.ReactNode }) {
+    useEffect(() => {
+      const unsubscribe = subscribe(type, fn);
+
+      return () => unsubscribe();
+    }, [type, fn]);
+  }
+
+  function Provider({ children }: { children: React.ReactNode }) {
     const listeners = new Map<keyof TEventMap, Set<(payload: never) => void>>();
 
-    const subscribe = <T extends keyof TEventMap>(
-      type: T,
-      callback: (payload: TEventMap[T]) => void
-    ) => {
+    const subscribe: EventbusContextProps["subscribe"] = (type, callback) => {
       const set = listeners.get(type) || new Set();
 
       set.add(callback);
@@ -46,10 +57,7 @@ export function createEventBusContext<TEventMap>() {
       };
     };
 
-    const dispatch = <T extends keyof TEventMap>(
-      type: T,
-      payload: TEventMap[T]
-    ) => {
+    const dispatch: EventbusContextProps["dispatch"] = (type, payload) => {
       const set = listeners.get(type);
 
       if (set) {
@@ -62,15 +70,13 @@ export function createEventBusContext<TEventMap>() {
       subscribe,
     };
 
-    return (
-      <EventbusContext.Provider value={value}>
-        {children}
-      </EventbusContext.Provider>
-    );
+    return <Context.Provider value={value}>{children}</Context.Provider>;
   }
 
   return {
-    useEventbus,
-    EventbusProvider,
+    Context,
+    useContext: useEventbusContext,
+    useSubscribe,
+    Provider,
   };
 }
