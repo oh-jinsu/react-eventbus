@@ -1,0 +1,16 @@
+.github
+
+node_modules
+
+src
+tsconfig.json
+
+*.spec.*
+coverage
+
+.eslintrc.js
+.gitignore
+.prettierrc
+
+.vscode
+.DS_Store
